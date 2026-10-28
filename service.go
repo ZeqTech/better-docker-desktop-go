@@ -9,7 +9,7 @@ import (
 	"github.com/wailsapp/wails/v3/pkg/services/notifications"
 )
 
-const appVersion = "0.2.0"
+const appVersion = "0.2.1"
 
 // App is the service the frontend calls. Every exported method is reachable from TypeScript as
 // `main.App.<Method>`; errors reject the call with their message.
