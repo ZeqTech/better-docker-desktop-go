@@ -72,6 +72,8 @@ jobs:
 
       - name: Test
         run: |
+          # main.go embeds frontend/dist, which must exist before Go compiles the package.
+          mkdir -p frontend/dist && touch frontend/dist/.gitkeep
           go test ./...
           npm --prefix frontend test
 
