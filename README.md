@@ -22,12 +22,21 @@ The frontend calls Go through `call("Method", ...args)` in `frontend/src/platfor
 ## Commands
 
 ```bash
-wails3 dev                     # run with hot reload
-wails3 build                   # build bin/better-docker-desktop-go.exe (also runs the frontend build)
-wails3 package                 # NSIS installer on Windows
-go test ./...                  # backend tests
-cd frontend && npm test        # tsc --noEmit && vitest run
+./make.sh                      # build for the current OS
+./make.sh win                  # Windows: portable exe (+ NSIS installer if makensis is installed) in dist/
+./make.sh mac                  # macOS .app in dist/ (on a Mac)
+./make.sh dev                  # run with hot reload
+./make.sh test                 # go test ./... then the frontend typecheck and vitest
+./make.sh version              # print the app version
+./make.sh release patch        # bump the version, tag and push; the tag starts the GitHub release (-n for a dry run)
+./make.sh makefile             # regenerate the Makefile from the case block in make.sh
 ```
+
+The raw tools work too: `wails3 dev`, `wails3 build`, `wails3 package`, `go test ./...`, `cd frontend && npm test`.
+
+## Releases
+
+`.github/workflows/release.yml` builds on every `v*` tag: Windows (setup + portable exe) and macOS on Apple Silicon (dmg), then publishes a GitHub Release. Run it by hand from the Actions tab to build without publishing. `./make.sh release` keeps the version in `build/config.yml`, `frontend/package.json` (and its lock file) and `service.go` in step, which the workflow's tag check requires.
 
 ## Differences from the Tauri app
 

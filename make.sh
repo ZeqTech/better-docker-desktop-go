@@ -6,6 +6,9 @@
 #   ./make.sh all        win, plus mac when running on a Mac
 #   ./make.sh dev        run the app in Wails dev mode (hot reload, no full build)
 #   ./make.sh test       Go tests, then the frontend typecheck and vitest
+#   ./make.sh version    print the app version
+#   ./make.sh release <patch|minor|major|X.Y.Z> [-y] [-n]  bump the version, tag and push (starts the GitHub release)
+#                        -y skips the confirmation, -n only shows the plan
 #   ./make.sh clean      remove bin/, dist/, frontend/dist and frontend/node_modules
 #   ./make.sh uninstall  quit the app and delete it plus its settings and caches (macOS), for a fresh install
 #   ./make.sh makefile   regenerate ./Makefile from the commands in the case block below
@@ -115,6 +118,111 @@ build_mac() {
     cp -R bin/*.app dist/
 }
 
+# The app version lives in build/config.yml (the source of truth), frontend/package.json (and its
+# lock file) and the appVersion constant in service.go.
+current_version() {
+    sed -n 's/^  version: "\([0-9][^"]*\)".*/\1/p' build/config.yml | head -n 1
+}
+
+# Bump the version, commit, tag and push; the tag starts the GitHub release workflow.
+#   release patch          0.2.0 -> 0.2.1
+#   release minor          0.2.0 -> 0.3.0
+#   release major          0.2.0 -> 1.0.0
+#   release 0.3.0          set an exact version
+# Options: -y / --yes skips the confirmation, -n / --dry-run only shows the plan.
+release_app() {
+    local YES=0 DRY=0 BUMP="" a
+    for a in "$@"; do
+        case "$a" in
+            -y|--yes) YES=1 ;;
+            -n|--dry-run) DRY=1 ;;
+            -*) echo "Unknown option: $a" >&2; return 2 ;;
+            *) BUMP="$a" ;;
+        esac
+    done
+    [ -n "$BUMP" ] || { echo "Usage: $0 release <patch|minor|major|X.Y.Z> [-y] [-n]" >&2; return 2; }
+
+    find_tools >/dev/null || return 1
+    git rev-parse --git-dir >/dev/null 2>&1 || { echo "Not a git repository." >&2; return 1; }
+
+    local CURRENT NEXT TAG BRANCH REMOTE=origin
+    CURRENT=$(current_version)
+    [ -n "$CURRENT" ] || { echo "Could not read the version from build/config.yml." >&2; return 1; }
+    NEXT=$(BUMP="$BUMP" CURRENT="$CURRENT" node -e '
+        const [a, b, c] = process.env.CURRENT.split(".").map(Number);
+        const k = process.env.BUMP;
+        const v = k === "patch" ? [a, b, c + 1] : k === "minor" ? [a, b + 1, 0] : k === "major" ? [a + 1, 0, 0] : null;
+        if (v) console.log(v.join("."));
+        else if (/^\d+\.\d+\.\d+$/.test(k)) console.log(k);
+        else { console.error("Version must be patch, minor, major or X.Y.Z"); process.exit(1); }
+    ') || return 1
+    TAG="v$NEXT"
+    BRANCH=$(git symbolic-ref --short -q HEAD || true)
+
+    [ -n "$BRANCH" ] || { echo "Detached HEAD: check out a branch first." >&2; return 1; }
+    git remote get-url "$REMOTE" >/dev/null 2>&1 || { echo "No '$REMOTE' remote. Add one first (git remote add origin <url>)." >&2; return 1; }
+    [ "$NEXT" != "$CURRENT" ] || { echo "Version is already $CURRENT." >&2; return 1; }
+    [ -z "$(git status --porcelain)" ] || { echo "Working tree has uncommitted changes. Commit or stash them first." >&2; git status --short >&2; return 1; }
+    if git rev-parse -q --verify "refs/tags/$TAG" >/dev/null; then echo "Tag $TAG already exists locally." >&2; return 1; fi
+
+    echo "==> Checking $REMOTE"
+    git fetch --quiet "$REMOTE" "$BRANCH" --tags 2>/dev/null || true
+    if git ls-remote --exit-code --tags "$REMOTE" "refs/tags/$TAG" >/dev/null 2>&1; then echo "Tag $TAG already exists on $REMOTE." >&2; return 1; fi
+    if git rev-parse -q --verify "$REMOTE/$BRANCH" >/dev/null 2>&1 && [ "$(git rev-list --count "HEAD..$REMOTE/$BRANCH")" != 0 ]; then
+        echo "$BRANCH is behind $REMOTE/$BRANCH. Pull first." >&2
+        return 1
+    fi
+
+    echo
+    echo "  Release  $CURRENT -> $NEXT  (tag $TAG)"
+    echo "  Branch   $BRANCH  ->  $REMOTE ($(git remote get-url "$REMOTE"))"
+    echo "  Updates  build/config.yml, frontend/package.json, frontend/package-lock.json, service.go"
+    echo
+    if [ "$DRY" = 1 ]; then echo "Dry run: nothing changed."; return 0; fi
+    if [ "$YES" != 1 ]; then
+        read -r -p "Bump, commit, tag and push? [y/N] " a
+        case "$a" in y|Y|yes) ;; *) echo "Cancelled."; return 1 ;; esac
+    fi
+
+    # Replace only the app's own version in each file. perl instead of sed because BSD sed (macOS)
+    # has no first-match address.
+    export NEXT
+    perl -0pi -e 's/^(  version: ")[^"]*"/$1$ENV{NEXT}"/m' build/config.yml
+    perl -0pi -e 's/^(const appVersion = ")[^"]*"/$1$ENV{NEXT}"/m' service.go
+    perl -0pi -e 's/^(  "version": ")[^"]*"/$1$ENV{NEXT}"/m' frontend/package.json
+    node -e '
+        const fs = require("fs"), f = "frontend/package-lock.json";
+        if (!fs.existsSync(f)) process.exit(0);
+        const l = JSON.parse(fs.readFileSync(f, "utf8"));
+        l.version = process.env.NEXT;
+        if (l.packages && l.packages[""]) l.packages[""].version = process.env.NEXT;
+        fs.writeFileSync(f, JSON.stringify(l, null, 2) + "\n");
+    '
+
+    # Fail before committing if any file did not take the new version.
+    local bad=""
+    [ "$(current_version)" = "$NEXT" ] || bad="build/config.yml"
+    grep -q "^const appVersion = \"$NEXT\"" service.go || bad="service.go"
+    [ "$(node -p "require('./frontend/package.json').version")" = "$NEXT" ] || bad="frontend/package.json"
+    if [ -n "$bad" ]; then echo "$bad was not updated; restoring." >&2; git checkout -- .; return 1; fi
+
+    git add build/config.yml service.go frontend/package.json
+    if [ -f frontend/package-lock.json ]; then git add frontend/package-lock.json; fi
+    git commit -m "Release $TAG"
+    git tag -a "$TAG" -m "$NAME $TAG"
+
+    echo "==> Pushing $BRANCH and $TAG"
+    if ! git push --atomic "$REMOTE" "HEAD:refs/heads/$BRANCH" "refs/tags/$TAG"; then
+        echo "Push failed. The commit and tag exist locally. Retry the push, or undo with:" >&2
+        echo "  git tag -d $TAG && git reset --hard HEAD~1" >&2
+        return 1
+    fi
+
+    echo
+    echo "Pushed $TAG. The release workflow is building Windows and macOS now."
+    echo "Watch it: $(git remote get-url "$REMOTE" | sed -E 's#^git@[^:]+:#https://github.com/#; s#\.git$##')/actions"
+}
+
 # Remove the installed app and everything it stored, so the next install starts clean.
 # Leaves Docker, kubeconfig and build output (bin/, dist/) alone.
 uninstall_app() {
@@ -140,6 +248,8 @@ uninstall_app() {
 case "$1" in
     makefile)   gen_makefile ;;
     uninstall)  uninstall_app ;;
+    version)    current_version ;;
+    release)    shift; release_app "$@" ;;
     win)        build_win && exec "dist/$NAME.exe" ;;
     mac)        build_mac && open "dist/$NAME.app" ;;
     all)
@@ -150,5 +260,5 @@ case "$1" in
     test)       find_tools && run_tests ;;
     clean)      rm -rf bin dist frontend/dist frontend/node_modules && mkdir -p frontend/dist && touch frontend/dist/.gitkeep && echo "Cleaned." ;;
     "")         if [ "$HOST" = mac ]; then build_mac; else build_win; fi ;;
-    *)          echo "Usage: $0 [win|mac|all|dev|test|clean|uninstall|makefile]" >&2; exit 2 ;;
+    *)          echo "Usage: $0 [win|mac|all|dev|test|clean|version|release|uninstall|makefile]" >&2; exit 2 ;;
 esac

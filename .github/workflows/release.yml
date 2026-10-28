@@ -1,0 +1,133 @@
+name: Release
+
+# Push a tag such as v0.2.0 to build Windows and macOS (Apple Silicon) and publish a GitHub Release.
+# The tag must match the version in build/config.yml.
+# Run it by hand (Actions > Release > Run workflow) to build without publishing: the installers
+# are attached to the run as artifacts.
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  # The tag on a release, a short commit id on a manual run.
+  LABEL: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || format('dev-{0}', github.sha) }}
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            target: win
+          # macos-latest is Apple Silicon (arm64), so only that Mac build is made.
+          - os: macos-latest
+            target: mac
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Check the tag matches the app version
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          VERSION=$(sed -n 's/^  version: "\([0-9][^"]*\)".*/\1/p' build/config.yml | head -n 1)
+          if [ "$LABEL" != "v$VERSION" ]; then
+            echo "Tag $LABEL does not match the version $VERSION in build/config.yml. Bump the version or retag." >&2
+            exit 1
+          fi
+
+      - name: Install the Wails CLI
+        run: |
+          WAILS=$(sed -n 's|^.*github.com/wailsapp/wails/v3 \(v[^ ]*\).*|\1|p' go.mod | head -n 1)
+          go install "github.com/wailsapp/wails/v3/cmd/wails3@$WAILS"
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+
+      # The NSIS installer needs makensis, which the Windows runner image does not guarantee.
+      - name: Install NSIS
+        if: matrix.target == 'win'
+        run: |
+          choco install nsis -y --no-progress
+          echo "C:\Program Files (x86)\NSIS" >> "$GITHUB_PATH"
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Test
+        run: |
+          go test ./...
+          npm --prefix frontend test
+
+      - name: Build (Windows)
+        if: matrix.target == 'win'
+        run: wails3 package
+
+      - name: Build (macOS)
+        if: matrix.target == 'mac'
+        run: wails3 task darwin:package:dmg
+
+      - name: Name the artifacts
+        run: |
+          mkdir -p release
+          shopt -s nullglob
+          if [ "${{ matrix.target }}" = win ]; then
+            for f in bin/*-installer.exe; do cp "$f" "release/BetterDockerDesktop-$LABEL-win-x64-setup.exe"; done
+            cp bin/better-docker-desktop-go.exe "release/BetterDockerDesktop-$LABEL-win-x64-portable.exe"
+          else
+            dmgs=(bin/*.dmg)
+            if [ ${#dmgs[@]} -gt 0 ]; then
+              cp "${dmgs[0]}" "release/BetterDockerDesktop-$LABEL-macos-arm64.dmg"
+            else
+              # No dmg was produced: ship the .app as a zip instead.
+              ditto -c -k --keepParent bin/better-docker-desktop-go.app "release/BetterDockerDesktop-$LABEL-macos-arm64.zip"
+            fi
+          fi
+          ls -l release
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ matrix.target }}
+          path: release/*
+          if-no-files-found: error
+
+  publish:
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: release
+          pattern: release-*
+          merge-multiple: true
+
+      - name: Checksums
+        working-directory: release
+        run: sha256sum * > SHA256SUMS.txt
+
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          gh release create "$LABEL" release/* \
+            --title "Better Docker Desktop $LABEL" \
+            --generate-notes \
+            --notes "Windows: run the setup installer, or the portable exe (no install). macOS (Apple Silicon only): open the .dmg and drag the app to Applications. Neither build is code-signed: Windows SmartScreen may warn (More info, then Run anyway); on macOS, right-click the app and choose Open, or run: xattr -dr com.apple.quarantine \"/Applications/better-docker-desktop-go.app\". Check downloads against SHA256SUMS.txt. Requires Docker installed on your machine."
