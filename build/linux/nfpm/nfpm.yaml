@@ -3,7 +3,7 @@
 #
 # The lines below are called `modelines`. See `:help modeline`
 
-name: "better-docker-desktop-go.exe"
+name: "Better Docker Desktop Go.exe"
 arch: ${GOARCH}
 platform: "linux"
 version: "0.1.0"
@@ -17,12 +17,12 @@ license: "MIT"
 release: "1"
 
 contents:
-  - src: "./bin/better-docker-desktop-go.exe"
-    dst: "/usr/local/bin/better-docker-desktop-go.exe"
+  - src: "./bin/Better Docker Desktop Go.exe"
+    dst: "/usr/local/bin/Better Docker Desktop Go.exe"
   - src: "./build/appicon.png"
-    dst: "/usr/share/icons/hicolor/128x128/apps/better-docker-desktop-go.exe.png"
-  - src: "./build/linux/better-docker-desktop-go.exe.desktop"
-    dst: "/usr/share/applications/better-docker-desktop-go.exe.desktop"
+    dst: "/usr/share/icons/hicolor/128x128/apps/Better Docker Desktop Go.exe.png"
+  - src: "./build/linux/Better Docker Desktop Go.exe.desktop"
+    dst: "/usr/share/applications/Better Docker Desktop Go.exe.desktop"
 
 # Default dependencies for the GTK4 + WebKitGTK 6.0 stack (Ubuntu 24.04+ / Debian 13+)
 depends:

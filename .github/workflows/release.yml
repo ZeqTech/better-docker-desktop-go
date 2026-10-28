@@ -91,7 +91,7 @@ jobs:
           shopt -s nullglob
           if [ "${{ matrix.target }}" = win ]; then
             for f in bin/*-installer.exe; do cp "$f" "release/BetterDockerDesktop-$LABEL-win-x64-setup.exe"; done
-            cp bin/better-docker-desktop-go.exe "release/BetterDockerDesktop-$LABEL-win-x64-portable.exe"
+            cp bin/Better Docker Desktop Go.exe "release/BetterDockerDesktop-$LABEL-win-x64-portable.exe"
           else
             dmgs=(bin/*.dmg)
             if [ ${#dmgs[@]} -gt 0 ]; then

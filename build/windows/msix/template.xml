@@ -8,7 +8,7 @@
         AllowPromptForPassword="false">
     </Settings>
     <Installer
-        Path="better-docker-desktop-go.exe"
+        Path="Better Docker Desktop Go.exe"
         Arguments=""
         InstallLocation="C:\Program Files\My Company\Better Docker Desktop">
     </Installer>
@@ -21,16 +21,16 @@
         PackageDescription="A better-docker-desktop-go application">
         <Capabilities>
             <Capability Name="runFullTrust" />
-            
+
         </Capabilities>
         <Applications>
             <Application
                 Id="com.rea.betterdockerdesktop"
                 Description="A better-docker-desktop-go application"
                 DisplayName="Better Docker Desktop"
-                ExecutableName="better-docker-desktop-go.exe"
+                ExecutableName="Better Docker Desktop Go.exe"
                 EntryPoint="Windows.FullTrustApplication">
-                
+
             </Application>
         </Applications>
         <Resources>

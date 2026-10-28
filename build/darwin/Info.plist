@@ -6,7 +6,7 @@
         <key>CFBundleName</key>
             <string>Better Docker Desktop</string>
         <key>CFBundleExecutable</key>
-            <string>better-docker-desktop-go.exe</string>
+            <string>Better Docker Desktop Go.exe</string>
         <key>CFBundleIdentifier</key>
             <string>com.rea.betterdockerdesktop</string>
         <key>CFBundleVersion</key>

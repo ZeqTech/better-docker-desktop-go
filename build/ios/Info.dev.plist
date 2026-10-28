@@ -3,7 +3,7 @@
 <plist version="1.0">
 <dict>
     <key>CFBundleExecutable</key>
-    <string>better-docker-desktop-go.exe</string>
+    <string>Better Docker Desktop Go.exe</string>
     <key>CFBundleIdentifier</key>
     <string>com.rea.betterdockerdesktop.dev</string>
     <key>CFBundleName</key>
@@ -49,13 +49,13 @@
     <!-- Development mode enabled -->
     <key>WailsDevelopmentMode</key>
     <true/>
-    
+
     <key>NSHumanReadableCopyright</key>
     <string>© 2026, My Company</string>
-    
-    
+
+
     <key>CFBundleGetInfoString</key>
     <string>This is a comment</string>
-    
+
 </dict>
 </plist>

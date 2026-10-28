@@ -6,30 +6,30 @@
   xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
   xmlns:desktop="http://schemas.microsoft.com/appx/manifest/desktop/windows10"
   IgnorableNamespaces="uap3">
-  
-  <Identity 
+
+  <Identity
     Name="com.rea.betterdockerdesktop"
     Publisher="CN=My Company"
-    Version="0.1.0.0" 
+    Version="0.1.0.0"
     ProcessorArchitecture="x64" />
-  
+
   <Properties>
     <DisplayName>Better Docker Desktop</DisplayName>
     <PublisherDisplayName>My Company</PublisherDisplayName>
     <Description>A better-docker-desktop-go application</Description>
     <Logo>Assets\StoreLogo.png</Logo>
   </Properties>
-  
+
   <Dependencies>
     <TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.17763.0" MaxVersionTested="10.0.19041.0" />
   </Dependencies>
-  
+
   <Resources>
     <Resource Language="en-us" />
   </Resources>
-  
+
   <Applications>
-    <Application Id="com.rea.betterdockerdesktop" Executable="better-docker-desktop-go.exe" EntryPoint="Windows.FullTrustApplication">
+    <Application Id="com.rea.betterdockerdesktop" Executable="Better Docker Desktop Go.exe" EntryPoint="Windows.FullTrustApplication">
       <uap:VisualElements
         DisplayName="Better Docker Desktop"
         Description="A better-docker-desktop-go application"
@@ -39,17 +39,17 @@
         <uap:DefaultTile Wide310x150Logo="Assets\Wide310x150Logo.png" />
         <uap:SplashScreen Image="Assets\SplashScreen.png" />
       </uap:VisualElements>
-      
+
       <Extensions>
-        <desktop:Extension Category="windows.fullTrustProcess" Executable="better-docker-desktop-go.exe" />
-        
-        
+        <desktop:Extension Category="windows.fullTrustProcess" Executable="Better Docker Desktop Go.exe" />
+
+
       </Extensions>
     </Application>
   </Applications>
-  
+
   <Capabilities>
     <rescap:Capability Name="runFullTrust" />
-    
+
   </Capabilities>
 </Package>

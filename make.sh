@@ -231,7 +231,7 @@ release_app() {
 #   workflow -w            ...and follow it until it finishes
 #   workflow <branch>      run it on another branch (the branch must be pushed)
 trigger_workflow() {
-    local WATCH=0 REF="" a
+    local WATCH=1 REF="" a
     for a in "$@"; do
         case "$a" in
             -w|--watch) WATCH=1 ;;
