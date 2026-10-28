@@ -87,18 +87,21 @@ jobs:
 
       - name: Name the artifacts
         run: |
+          # The binary and app bundle are named after APP_NAME in Taskfile.yml (it contains spaces).
+          APP=$(sed -n 's/^  APP_NAME: "\(.*\)".*/\1/p' Taskfile.yml | head -n 1)
+          [ -n "$APP" ] || { echo "Could not read APP_NAME from Taskfile.yml" >&2; exit 1; }
           mkdir -p release
           shopt -s nullglob
           if [ "${{ matrix.target }}" = win ]; then
             for f in bin/*-installer.exe; do cp "$f" "release/BetterDockerDesktop-$LABEL-win-x64-setup.exe"; done
-            cp bin/Better Docker Desktop Go.exe "release/BetterDockerDesktop-$LABEL-win-x64-portable.exe"
+            cp "bin/$APP.exe" "release/BetterDockerDesktop-$LABEL-win-x64-portable.exe"
           else
             dmgs=(bin/*.dmg)
             if [ ${#dmgs[@]} -gt 0 ]; then
               cp "${dmgs[0]}" "release/BetterDockerDesktop-$LABEL-macos-arm64.dmg"
             else
               # No dmg was produced: ship the .app as a zip instead.
-              ditto -c -k --keepParent bin/better-docker-desktop-go.app "release/BetterDockerDesktop-$LABEL-macos-arm64.zip"
+              ditto -c -k --keepParent "bin/$APP.app" "release/BetterDockerDesktop-$LABEL-macos-arm64.zip"
             fi
           fi
           ls -l release
@@ -132,4 +135,4 @@ jobs:
           gh release create "$LABEL" release/* \
             --title "Better Docker Desktop $LABEL" \
             --generate-notes \
-            --notes "Windows: run the setup installer, or the portable exe (no install). macOS (Apple Silicon only): open the .dmg and drag the app to Applications. Neither build is code-signed: Windows SmartScreen may warn (More info, then Run anyway); on macOS, right-click the app and choose Open, or run: xattr -dr com.apple.quarantine \"/Applications/better-docker-desktop-go.app\". Check downloads against SHA256SUMS.txt. Requires Docker installed on your machine."
+            --notes "Windows: run the setup installer, or the portable exe (no install). macOS (Apple Silicon only): open the .dmg and drag the app to Applications. Neither build is code-signed: Windows SmartScreen may warn (More info, then Run anyway); on macOS, right-click the app and choose Open, or run: xattr -dr com.apple.quarantine \"/Applications/Better Docker Desktop Go.app\". Check downloads against SHA256SUMS.txt. Requires Docker installed on your machine."

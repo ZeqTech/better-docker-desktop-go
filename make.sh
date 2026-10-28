@@ -17,7 +17,8 @@
 # Env: SKIP_TESTS=0 runs the tests before a build.
 cd "$(dirname "${BASH_SOURCE[0]:-$0}")" || exit 1
 
-APP=better-docker-desktop-go
+# The binary and app bundle are named after APP_NAME in Taskfile.yml.
+APP=$(sed -n 's/^  APP_NAME: "\(.*\)".*/\1/p' Taskfile.yml | head -n 1)
 NAME="Better Docker Desktop"
 
 # Skip tests for local builds by default; run `SKIP_TESTS=0 ./make.sh` to include them.

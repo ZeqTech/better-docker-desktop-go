@@ -133,7 +133,7 @@ func TestSaveAndLoadPathsAreChecked(t *testing.T) {
 	if _, err := validateSavePath(ok); err != nil {
 		t.Errorf("save path: %v", err)
 	}
-	for _, bad := range []string{filepath.Join(tmp, "export-test.txt"), `Z:\definitely\missing\x.tar`, "x.tar"} {
+	for _, bad := range []string{filepath.Join(tmp, "export-test.txt"), filepath.Join(tmp, "definitely-missing-dir", "x.tar"), "x.tar"} {
 		if _, err := validateSavePath(bad); err == nil {
 			t.Errorf("%q should be refused", bad)
 		}
