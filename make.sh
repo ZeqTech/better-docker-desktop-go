@@ -9,6 +9,8 @@
 #   ./make.sh version    print the app version
 #   ./make.sh release <patch|minor|major|X.Y.Z> [-y] [-n]  bump the version, tag and push (starts the GitHub release)
 #                        -y skips the confirmation, -n only shows the plan
+#   ./make.sh workflow [-w] [branch]  run the Release workflow on GitHub by hand: builds Windows and macOS, publishes nothing
+#                        -w waits for it and shows its progress; the branch defaults to the current one
 #   ./make.sh clean      remove bin/, dist/, frontend/dist and frontend/node_modules
 #   ./make.sh uninstall  quit the app and delete it plus its settings and caches (macOS), for a fresh install
 #   ./make.sh makefile   regenerate ./Makefile from the commands in the case block below
@@ -223,6 +225,51 @@ release_app() {
     echo "Watch it: $(git remote get-url "$REMOTE" | sed -E 's#^git@[^:]+:#https://github.com/#; s#\.git$##')/actions"
 }
 
+# Run the Release workflow on GitHub by hand (workflow_dispatch). It builds Windows and macOS and
+# attaches the installers to the run; only a version tag publishes a release.
+#   workflow               run it on the current branch
+#   workflow -w            ...and follow it until it finishes
+#   workflow <branch>      run it on another branch (the branch must be pushed)
+trigger_workflow() {
+    local WATCH=0 REF="" a
+    for a in "$@"; do
+        case "$a" in
+            -w|--watch) WATCH=1 ;;
+            -*) echo "Unknown option: $a" >&2; return 2 ;;
+            *) REF="$a" ;;
+        esac
+    done
+    command -v gh >/dev/null || { echo "GitHub CLI not found. Install it from https://cli.github.com, then run: gh auth login" >&2; return 1; }
+    gh auth status >/dev/null 2>&1 || { echo "Not logged in to GitHub. Run: gh auth login" >&2; return 1; }
+    git remote get-url origin >/dev/null 2>&1 || { echo "No 'origin' remote. Add one first (git remote add origin <url>)." >&2; return 1; }
+
+    [ -n "$REF" ] || REF=$(git symbolic-ref --short -q HEAD || true)
+    [ -n "$REF" ] || { echo "Detached HEAD: pass a branch name." >&2; return 1; }
+    # The workflow runs the code on GitHub, not what is on this disk.
+    git fetch --quiet origin "$REF" 2>/dev/null || { echo "Branch '$REF' is not on origin. Push it first." >&2; return 1; }
+    if [ "$(git rev-parse -q --verify "$REF" 2>/dev/null)" != "$(git rev-parse -q --verify "origin/$REF" 2>/dev/null)" ]; then
+        echo "Note: '$REF' differs from origin/$REF; GitHub builds what is on origin." >&2
+    fi
+    [ -z "$(git status --porcelain)" ] || echo "Note: uncommitted changes are not part of the build." >&2
+
+    echo "==> Starting the Release workflow on $REF"
+    gh workflow run release.yml --ref "$REF" || return 1
+
+    # The run takes a moment to appear in the list.
+    local ID="" i
+    for i in 1 2 3 4 5 6; do
+        sleep 3
+        ID=$(gh run list --workflow=release.yml --branch "$REF" --event workflow_dispatch --limit 1 --json databaseId --jq '.[0].databaseId' 2>/dev/null)
+        [ -n "$ID" ] && break
+    done
+    [ -n "$ID" ] || { echo "Started, but could not find the run. Check the Actions tab." >&2; return 0; }
+    echo "Run: $(gh run view "$ID" --json url --jq .url)"
+    if [ "$WATCH" = 1 ]; then
+        gh run watch "$ID" --exit-status || return 1
+        echo "Installers are attached to the run under Artifacts."
+    fi
+}
+
 # Remove the installed app and everything it stored, so the next install starts clean.
 # Leaves Docker, kubeconfig and build output (bin/, dist/) alone.
 uninstall_app() {
@@ -250,6 +297,7 @@ case "$1" in
     uninstall)  uninstall_app ;;
     version)    current_version ;;
     release)    shift; release_app "$@" ;;
+    workflow)   shift; trigger_workflow "$@" ;;
     win)        build_win && exec "dist/$NAME.exe" ;;
     mac)        build_mac && open "dist/$NAME.app" ;;
     all)
@@ -260,5 +308,5 @@ case "$1" in
     test)       find_tools && run_tests ;;
     clean)      rm -rf bin dist frontend/dist frontend/node_modules && mkdir -p frontend/dist && touch frontend/dist/.gitkeep && echo "Cleaned." ;;
     "")         if [ "$HOST" = mac ]; then build_mac; else build_win; fi ;;
-    *)          echo "Usage: $0 [win|mac|all|dev|test|clean|version|release|uninstall|makefile]" >&2; exit 2 ;;
+    *)          echo "Usage: $0 [win|mac|all|dev|test|clean|version|release|workflow|uninstall|makefile]" >&2; exit 2 ;;
 esac

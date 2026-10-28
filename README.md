@@ -29,6 +29,7 @@ The frontend calls Go through `call("Method", ...args)` in `frontend/src/platfor
 ./make.sh test                 # go test ./... then the frontend typecheck and vitest
 ./make.sh version              # print the app version
 ./make.sh release patch        # bump the version, tag and push; the tag starts the GitHub release (-n for a dry run)
+./make.sh workflow -w          # run the Release workflow on GitHub by hand (builds, no publish) and follow it
 ./make.sh makefile             # regenerate the Makefile from the case block in make.sh
 ```
 
