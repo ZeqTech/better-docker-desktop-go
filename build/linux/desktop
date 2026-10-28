@@ -1,0 +1,13 @@
+[Desktop Entry]
+Version=1.0
+Name=Better Docker Desktop
+Comment=A better-docker-desktop-go application
+# The Exec line includes %u to pass the URL to the application
+Exec=/usr/local/bin/better-docker-desktop-go.exe %u
+Terminal=false
+Type=Application
+Icon=better-docker-desktop-go.exe
+Categories=Utility;
+StartupWMClass=better-docker-desktop-go.exe
+
+ 
